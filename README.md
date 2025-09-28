@@ -31,3 +31,4 @@ Notes
 - The extension runs as a Manifest V3 extension.
 - Cross-origin request to `localhost:8080` is performed by the background service worker (to avoid CORS limitations in content scripts). Ensure your backend is running and accessible.
 - The content script tries to insert the button near the MR header action buttons; if not found, it adds a floating button in the top-right corner.
+ - Backend URL is centralized in `src/config.js` (`BACKEND_BASE`, `ANALYZE_PATH`). Update these if your backend origin/path changes. The manifest still declares `host_permissions` for that origin as required by MV3.

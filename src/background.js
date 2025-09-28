@@ -1,5 +1,6 @@
-// background.js (MV3 service worker)
+// background.js (MV3 service worker, ES module)
 // Handles cross-origin fetch to localhost backend to avoid CORS issues from content scripts.
+import { ANALYZE_URL } from './config.js';
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || message.type !== 'analyze_mr') return; // not for us
@@ -14,7 +15,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 60_000);
 
-  fetch('http://localhost:8080/api/v1/mr/analyze', {
+  fetch(ANALYZE_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ mr_url: mrUrl }),
@@ -38,4 +39,3 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Return true to keep the message channel open for async sendResponse
   return true;
 });
-

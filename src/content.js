@@ -29,7 +29,7 @@
       #${BTN_ID}:hover { filter: brightness(0.95); }
 
       #${PANEL_ID} {
-        position: absolute;
+        position: fixed;
         z-index: 9999;
         min-width: 380px;
         max-width: 640px;
@@ -61,8 +61,24 @@
       }
       @keyframes gl-ai-spin { to { transform: rotate(360deg); } }
 
-      .gl-ai-content { white-space: pre-wrap; }
+      .gl-ai-content { white-space: normal; }
       .gl-ai-error { color:#d1242f; white-space: pre-wrap; }
+
+      /* Structured rendering for findings */
+      .gl-ai-section-title { font-weight:600; margin: 6px 0; }
+      .gl-ai-summary { margin: 6px 0 10px; white-space: pre-wrap; }
+      .gl-ai-findings { margin: 6px 0; padding: 0; }
+      .gl-ai-finding { list-style: none; margin: 10px 0; padding: 10px; border: 1px solid #eaeef2; border-radius: 6px; }
+      .gl-ai-finding-header { display:flex; align-items:center; gap:8px; font-weight:600; }
+      .gl-ai-badge { display:inline-block; padding: 0 6px; border-radius: 999px; font-size: 12px; line-height: 18px; color:#222; background:#eaeef2; text-transform: capitalize; }
+      .gl-ai-badge.low { background:#d7f0e5; color:#03543f; }
+      .gl-ai-badge.medium { background:#fff4cf; color:#92400e; }
+      .gl-ai-badge.high { background:#fde2e2; color:#9b1c1c; }
+      .gl-ai-badge.critical { background:#fbd5d5; color:#7f1d1d; }
+      .gl-ai-meta { color:#57606a; font-size:12px; }
+      .gl-ai-file { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; }
+      .gl-ai-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; background:#f6f8fa; border:1px solid #eaeef2; padding:8px; border-radius:6px; white-space: pre; overflow:auto; }
+      .gl-ai-subtitle { font-weight:600; margin: 8px 0 4px; }
     `;
     document.documentElement.appendChild(style);
   }
@@ -185,25 +201,80 @@
     const contentEl = panel.querySelector('.gl-ai-content');
     const errorEl = panel.querySelector('.gl-ai-error');
 
-    function showPanel() {
-      // Place panel under/right of the button
-      panel.classList.add('visible');
-      // Try to keep panel within viewport
-      requestAnimationFrame(() => {
-        const rect = btn.getBoundingClientRect();
-        const panelRect = panel.getBoundingClientRect();
-        const top = rect.height + 6;
-        let left = 0;
-        if (rect.left + panelRect.width > window.innerWidth - 16) {
-          left = Math.max(-panelRect.width + rect.width, -rect.left + 16);
+    let onReposition = null;
+    let resizeObs = null;
+    function repositionPanel() {
+      const margin = 12; // keep inside viewport
+      const gap = 6; // gap from button
+      const rect = btn.getBoundingClientRect();
+
+      // Ensure it's measurable
+      const pr = panel.getBoundingClientRect();
+      let panelWidth = pr.width || 420;
+      let panelHeight = pr.height || 200;
+
+      // Default below-left aligned to button
+      let top = rect.bottom + gap;
+      let left = rect.left;
+
+      // Horizontal clamp
+      if (left + panelWidth > window.innerWidth - margin) {
+        left = Math.max(margin, window.innerWidth - margin - panelWidth);
+      }
+      if (left < margin) left = margin;
+
+      // Vertical flip if overflow
+      if (top + panelHeight > window.innerHeight - margin) {
+        const above = rect.top - gap - panelHeight;
+        if (above >= margin) {
+          top = above;
+        } else {
+          // Not enough space above or below; clamp to viewport with max height
+          top = Math.max(margin, Math.min(top, window.innerHeight - margin - panelHeight));
+          panel.style.maxHeight = `calc(100vh - ${2 * margin}px)`;
         }
-        panel.style.top = `${top}px`;
-        panel.style.left = `${left}px`;
+      }
+
+      panel.style.top = `${Math.round(top)}px`;
+      panel.style.left = `${Math.round(left)}px`;
+    }
+
+    function attachReposition() {
+      if (onReposition) return;
+      onReposition = () => { if (panel.classList.contains('visible')) repositionPanel(); };
+      window.addEventListener('resize', onReposition, { passive: true });
+      window.addEventListener('scroll', onReposition, { passive: true, capture: true });
+      // Observe panel size changes (content updates) to keep it in view
+      if ('ResizeObserver' in window && !resizeObs) {
+        resizeObs = new ResizeObserver(() => {
+          if (panel.classList.contains('visible')) repositionPanel();
+        });
+        resizeObs.observe(panel);
+      }
+    }
+
+    function detachReposition() {
+      if (!onReposition) return;
+      window.removeEventListener('resize', onReposition, { passive: true });
+      window.removeEventListener('scroll', onReposition, { passive: true, capture: true });
+      onReposition = null;
+      if (resizeObs) { try { resizeObs.disconnect(); } catch (_) {} resizeObs = null; }
+    }
+
+    function showPanel() {
+      // Make panel visible for measurement, but hidden to avoid flicker
+      panel.classList.add('visible');
+      panel.style.visibility = 'hidden';
+      requestAnimationFrame(() => {
+        repositionPanel();
+        panel.style.visibility = '';
+        attachReposition();
       });
     }
 
     function hidePanel() {
       panel.classList.remove('visible');
+      detachReposition();
     }
 
     closeBtn.addEventListener('click', hidePanel);
@@ -229,22 +300,94 @@
         }
         const data = resp.data || {};
         const status = data.status;
-        const analysis = data.analysisResult || '';
+        const analysis = data.analysisResult;
 
         loadingEl.style.display = 'none';
         if (status === 'success') {
           contentEl.style.display = 'block';
-          contentEl.textContent = analysis || 'No analysis returned.';
+          // Render new structured payload, with backward compatibility for string
+          const html = renderAnalysisHtml(analysis);
+          contentEl.innerHTML = html;
+          // Reposition after content expands
+          repositionPanel();
         } else {
           errorEl.style.display = 'block';
           errorEl.textContent = data.errorMessage || 'Analysis failed.';
+          repositionPanel();
         }
       } catch (e) {
         loadingEl.style.display = 'none';
         errorEl.style.display = 'block';
         errorEl.textContent = `Request failed: ${e.message || e}`;
+        repositionPanel();
       }
     });
+  }
+
+  function escapeHtml(s) {
+    if (s === null || s === undefined) return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function renderAnalysisHtml(analysis) {
+    if (!analysis) return 'No analysis returned.';
+    if (typeof analysis === 'string') {
+      return `<pre class="gl-ai-code">${escapeHtml(analysis)}</pre>`;
+    }
+    // Assume object with schemaVersion, promptType, findings[], summaryMarkdown
+    const parts = [];
+    if (analysis.summaryMarkdown) {
+      parts.push(`<div class="gl-ai-section-title">Summary</div>`);
+      parts.push(`<div class="gl-ai-summary">${escapeHtml(analysis.summaryMarkdown)}</div>`);
+    }
+    const findings = Array.isArray(analysis.findings) ? analysis.findings : [];
+    if (findings.length > 0) {
+      parts.push(`<div class="gl-ai-section-title">Findings (${findings.length})</div>`);
+      parts.push('<ul class="gl-ai-findings">');
+      for (const f of findings) {
+        const sev = (f.severity || '').toLowerCase();
+        const title = escapeHtml(f.title || '');
+        const ruleId = escapeHtml(f.ruleId || '');
+        const category = escapeHtml(f.category || '');
+        const file = escapeHtml(f.location && f.location.file ? f.location.file : '');
+        const startLine = f.location && f.location.startLine != null ? f.location.startLine : '';
+        const endLine = f.location && f.location.endLine != null ? f.location.endLine : '';
+        const range = startLine !== '' ? `${startLine}${endLine && endLine !== startLine ? '-' + endLine : ''}` : '';
+        const description = escapeHtml(f.description || '');
+        const evidence = f.evidence ? `<div class="gl-ai-subtitle">Evidence</div><pre class="gl-ai-code">${escapeHtml(f.evidence)}</pre>` : '';
+        const remediationSteps = f.remediation && f.remediation.steps ? `<div class="gl-ai-subtitle">Remediation</div><div class="gl-ai-summary">${escapeHtml(f.remediation.steps)}</div>` : '';
+        const remediationDiff = f.remediation && f.remediation.diff ? `<div class="gl-ai-subtitle">Suggested Diff</div><pre class="gl-ai-code">${escapeHtml(f.remediation.diff)}</pre>` : '';
+        const tags = Array.isArray(f.tags) && f.tags.length ? `<div class="gl-ai-meta">Tags: ${f.tags.map(escapeHtml).join(', ')}</div>` : '';
+        const confidence = f.confidence != null ? `<div class="gl-ai-meta">Confidence: ${escapeHtml(f.confidence)}</div>` : '';
+        const meta = [ruleId && `Rule: ${ruleId}`, category && `Category: ${category}`].filter(Boolean).join(' • ');
+
+        parts.push(`
+          <li class="gl-ai-finding">
+            <div class="gl-ai-finding-header">
+              <span class="gl-ai-badge ${sev}">${escapeHtml(sev || 'info')}</span>
+              <span>${title}</span>
+            </div>
+            ${meta ? `<div class="gl-ai-meta">${escapeHtml(meta)}</div>` : ''}
+            ${file ? `<div class="gl-ai-meta">File: <span class="gl-ai-file">${file}${range ? ':' + range : ''}</span></div>` : ''}
+            ${description ? `<div class="gl-ai-summary">${description}</div>` : ''}
+            ${evidence}
+            ${remediationSteps}
+            ${remediationDiff}
+            ${tags}
+            ${confidence}
+          </li>
+        `);
+      }
+      parts.push('</ul>');
+    } else {
+      parts.push('<div>No findings.</div>');
+    }
+    return parts.join('');
   }
 
   function ensureUi() {

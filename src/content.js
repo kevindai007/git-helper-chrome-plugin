@@ -77,7 +77,24 @@
       .gl-ai-badge.critical { background:#fbd5d5; color:#7f1d1d; }
       .gl-ai-meta { color:#57606a; font-size:12px; }
       .gl-ai-file { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; }
-      .gl-ai-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; background:#f6f8fa; border:1px solid #eaeef2; padding:8px; border-radius:6px; white-space: pre; overflow:auto; }
+      .gl-ai-code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size:12px;
+        color:#24292f;
+        background:#f6f8fa;
+        border:1px solid #d0d7de;
+        padding:8px;
+        border-radius:6px;
+        white-space: pre;
+        overflow:auto;
+      }
+      @media (prefers-color-scheme: dark) {
+        .gl-ai-code {
+          color:#c9d1d9;
+          background:#0d1117;
+          border-color:#30363d;
+        }
+      }
       .gl-ai-subtitle { font-weight:600; margin: 8px 0 4px; }
     `;
     document.documentElement.appendChild(style);

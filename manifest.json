@@ -21,7 +21,7 @@
     "activeTab"
   ],
   "host_permissions": [
-    "http://kubernetes.docker.internal:8080/*"
+    "http://localhost:8096/*"
   ],
   "background": {
     "service_worker": "src/background.js",
@@ -30,8 +30,8 @@
   "content_scripts": [
     {
       "matches": [
-        "*://gitlab.com/*/-/merge_requests/*",
-        "*://gitlab.com/*/merge_requests/*"
+        "*://gitlab-ultimate.nationalcloud.ae/*/-/merge_requests/*",
+        "*://gitlab-ultimate.nationalcloud.ae/*/merge_requests/*"
       ],
       "js": ["src/content.js"],
       "run_at": "document_idle"

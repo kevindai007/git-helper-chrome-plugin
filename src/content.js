@@ -6,7 +6,8 @@
   const PANEL_ID = 'gl-ai-review-panel';
   const STYLE_ID = 'gl-ai-review-style';
 
-  const isMrPage = () => location.hostname === 'gitlab.com' && /\/merge_requests\//.test(location.pathname);
+  // Consider any GitLab MR path (project/-/merge_requests or project/merge_requests)
+  const isMrPage = () => /\/(?:-\/)?merge_requests\//.test(location.pathname);
 
   function ensureStyles() {
     if (document.getElementById(STYLE_ID)) return;
@@ -145,11 +146,14 @@
     btn.type = 'button';
     btn.textContent = 'AI Review';
     btn.title = 'Analyze this Merge Request with AI';
+    // Adopt GitLab button classes for native look while keeping our ID styles as fallback
+    btn.className = 'gl-button btn btn-md btn-confirm';
 
     // Positioning wrapper to help place panel next to button
     const wrapper = document.createElement('span');
     wrapper.style.position = 'relative';
     wrapper.style.display = 'inline-block';
+    wrapper.style.marginRight = '8px';
     wrapper.appendChild(btn);
 
     // Panel

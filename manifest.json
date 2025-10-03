@@ -21,7 +21,7 @@
     "activeTab"
   ],
   "host_permissions": [
-    "http://localhost:8096/*"
+    "https://anythingllm.nationalcloud.ae/*"
   ],
   "background": {
     "service_worker": "src/background.js",

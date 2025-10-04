@@ -311,20 +311,23 @@
       if (!t || !(t instanceof Element)) return;
       const btn = t.closest('.gl-ai-apply');
       if (!btn) return;
+      if (btn.getAttribute('data-status') === '1' || btn.getAttribute('data-loading') === '1') return;
       e.preventDefault();
       const findingId = btn.getAttribute('data-finding-id');
       if (!findingId) return;
       const prev = btn.textContent;
-      btn.disabled = true;
+      btn.setAttribute('data-loading', '1');
       btn.textContent = 'Applying…';
       try {
         const resp = await chrome.runtime.sendMessage({ type: 'adopt_change', findingId });
         if (!resp || !resp.ok) throw new Error((resp && resp.error) || 'Failed');
         btn.textContent = 'Applied';
+        btn.setAttribute('data-status', '1');
       } catch (err) {
         btn.textContent = 'Failed';
-        setTimeout(() => { btn.textContent = prev; btn.disabled = false; repositionPanel(); }, 1400);
+        setTimeout(() => { btn.textContent = prev; btn.removeAttribute('data-loading'); repositionPanel(); }, 1400);
       } finally {
+        btn.removeAttribute('data-loading');
         repositionPanel();
       }
     });
@@ -437,7 +440,13 @@
               <span class="gl-ai-index">${i + 1}</span>
               <span class="gl-ai-badge ${sev}">${escapeHtml(sev || 'info')}</span>
               <span>${title}</span>
-              ${f.id ? `<button class=\"gl-ai-apply\" data-finding-id=\"${escapeHtml(f.id)}\">Apply</button>` : ''}
+              ${(() => {
+                if (!f.id) return '';
+                const st = Number(f.status);
+                const applied = st === 1;
+                const label = applied ? 'Applied' : 'Apply';
+                return `<button class="gl-ai-apply" data-finding-id="${escapeHtml(f.id)}" data-status="${applied ? '1' : '0'}">${label}</button>`;
+              })()}
             </div>
             ${meta ? `<div class="gl-ai-meta">${escapeHtml(meta)}</div>` : ''}
             ${file ? `<div class="gl-ai-meta">File: <span class="gl-ai-file">${file}${range ? ':' + range : ''}</span></div>` : ''}

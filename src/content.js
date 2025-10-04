@@ -102,8 +102,14 @@
       .gl-ai-apply { margin-left:auto; height: 24px; padding: 0 8px; border-radius: 6px; border: 1px solid #d0d7de; background:#f6f8fa; color:#24292f; font-size:12px; cursor:pointer; }
       .gl-ai-apply:hover { filter: brightness(0.97); }
       .gl-ai-apply[disabled] { opacity: 0.6; cursor: default; }
+      .gl-ai-apply[data-status="0"] { background: #000; color: #fff; border-color: #000; }
+      .gl-ai-apply[data-status="0"]:hover { background: #333; }
+      .gl-ai-apply[data-status="1"] { background: #ccc; color: #000; border-color: #ccc; cursor: default; }
       @media (prefers-color-scheme: dark) {
         .gl-ai-apply { background:#161b22; color:#c9d1d9; border-color:#30363d; }
+        .gl-ai-apply[data-status="0"] { background: #000; color: #fff; border-color: #000; }
+        .gl-ai-apply[data-status="0"]:hover { background: #333; }
+        .gl-ai-apply[data-status="1"] { background: #ccc; color: #000; border-color: #ccc; }
       }
     `;
     document.documentElement.appendChild(style);

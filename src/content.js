@@ -96,6 +96,8 @@
           border-color:#30363d;
         }
       }
+
+      /* (Removed special remediation block; reuse .gl-ai-code for visibility) */
       .gl-ai-subtitle { font-weight:600; margin: 8px 0 4px; }
     `;
     document.documentElement.appendChild(style);
@@ -382,8 +384,14 @@
         const range = startLine ? `${startLine}` : '';
         const description = escapeHtml(f.description || '');
         const evidence = f.evidence ? `<div class="gl-ai-subtitle">Evidence</div><pre class="gl-ai-code">${escapeHtml(f.evidence)}</pre>` : '';
-        const remediationSteps = f.remediation && f.remediation.steps ? `<div class="gl-ai-subtitle">Remediation</div><div class="gl-ai-summary">${escapeHtml(f.remediation.steps)}</div>` : '';
-        const remediationDiff = f.remediation && f.remediation.diff ? `<div class="gl-ai-subtitle">Suggested Diff</div><pre class="gl-ai-code">${escapeHtml(f.remediation.diff)}</pre>` : '';
+        const remParts = [];
+        if (f.remediation && f.remediation.steps) {
+          remParts.push(`<div class=\"gl-ai-subtitle\">Remediation</div><pre class=\"gl-ai-code\">${escapeHtml(f.remediation.steps)}</pre>`);
+        }
+        if (f.remediation && f.remediation.diff) {
+          remParts.push(`<div class=\"gl-ai-subtitle\">Suggested Diff</div><pre class=\"gl-ai-code\">${escapeHtml(f.remediation.diff)}</pre>`);
+        }
+        const remediation = remParts.join('');
         const tags = Array.isArray(f.tags) && f.tags.length ? `<div class="gl-ai-meta">Tags: ${f.tags.map(escapeHtml).join(', ')}</div>` : '';
         const confidence = f.confidence != null ? `<div class="gl-ai-meta">Confidence: ${escapeHtml(f.confidence)}</div>` : '';
         const meta = [ruleId && `Rule: ${ruleId}`, category && `Category: ${category}`].filter(Boolean).join(' • ');
@@ -405,8 +413,7 @@
             ${lineMeta}
             ${description ? `<div class="gl-ai-summary">${description}</div>` : ''}
             ${evidence}
-            ${remediationSteps}
-            ${remediationDiff}
+            ${remediation}
             ${tags}
             ${confidence}
           </li>

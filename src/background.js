@@ -1,41 +1,58 @@
 // background.js (MV3 service worker, ES module)
 // Handles cross-origin fetch to localhost backend to avoid CORS issues from content scripts.
-import { ANALYZE_URL } from './config.js';
+import { ANALYZE_URL, ADOPT_URL } from './config.js';
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (!message || message.type !== 'analyze_mr') return; // not for us
-
-  const { mrUrl } = message;
-  // Defensive: ensure we have a URL
-  if (!mrUrl) {
-    sendResponse({ ok: false, error: 'Missing mrUrl' });
-    return true;
-  }
+  if (!message || (message.type !== 'analyze_mr' && message.type !== 'adopt_change')) return; // not for us
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 60_000);
 
-  fetch(ANALYZE_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mr_url: mrUrl }),
-    signal: controller.signal,
-  })
-    .then(async (r) => {
-      clearTimeout(timeout);
-      const contentType = r.headers.get('content-type') || '';
-      if (!r.ok) {
-        const text = contentType.includes('application/json') ? JSON.stringify(await r.json()).slice(0, 2000) : (await r.text()).slice(0, 2000);
-        return sendResponse({ ok: false, error: `HTTP ${r.status}: ${text}` });
+  async function handle() {
+    try {
+      if (message.type === 'analyze_mr') {
+        const { mrUrl } = message;
+        if (!mrUrl) throw new Error('Missing mrUrl');
+        const r = await fetch(ANALYZE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mr_url: mrUrl }),
+          signal: controller.signal,
+        });
+        const contentType = r.headers.get('content-type') || '';
+        if (!r.ok) {
+          const text = contentType.includes('application/json') ? JSON.stringify(await r.json()).slice(0, 2000) : (await r.text()).slice(0, 2000);
+          sendResponse({ ok: false, error: `HTTP ${r.status}: ${text}` });
+          return;
+        }
+        const data = await r.json();
+        sendResponse({ ok: true, data });
+      } else if (message.type === 'adopt_change') {
+        const { findingId } = message;
+        if (!findingId) throw new Error('Missing findingId');
+        const r = await fetch(ADOPT_URL(findingId), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+        });
+        const contentType = r.headers.get('content-type') || '';
+        if (!r.ok) {
+          const text = contentType.includes('application/json') ? JSON.stringify(await r.json()).slice(0, 2000) : (await r.text()).slice(0, 2000);
+          sendResponse({ ok: false, error: `HTTP ${r.status}: ${text}` });
+          return;
+        }
+        let data;
+        if (contentType.includes('application/json')) data = await r.json();
+        else data = { status: 'ok', body: await r.text() };
+        sendResponse({ ok: true, data });
       }
-      const data = await r.json();
-      return sendResponse({ ok: true, data });
-    })
-    .catch((err) => {
-      clearTimeout(timeout);
+    } catch (err) {
       sendResponse({ ok: false, error: String(err && err.message ? err.message : err) });
-    });
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
 
-  // Return true to keep the message channel open for async sendResponse
-  return true;
+  handle();
+  return true; // keep channel open
 });

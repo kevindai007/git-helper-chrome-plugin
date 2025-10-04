@@ -99,6 +99,12 @@
 
       /* (Removed special remediation block; reuse .gl-ai-code for visibility) */
       .gl-ai-subtitle { font-weight:600; margin: 8px 0 4px; }
+      .gl-ai-apply { margin-left:auto; height: 24px; padding: 0 8px; border-radius: 6px; border: 1px solid #d0d7de; background:#f6f8fa; color:#24292f; font-size:12px; cursor:pointer; }
+      .gl-ai-apply:hover { filter: brightness(0.97); }
+      .gl-ai-apply[disabled] { opacity: 0.6; cursor: default; }
+      @media (prefers-color-scheme: dark) {
+        .gl-ai-apply { background:#161b22; color:#c9d1d9; border-color:#30363d; }
+      }
     `;
     document.documentElement.appendChild(style);
   }
@@ -299,6 +305,30 @@
 
     closeBtn.addEventListener('click', hidePanel);
 
+    // Delegate clicks for Apply buttons inside the panel content
+    contentEl.addEventListener('click', async (e) => {
+      const t = e.target;
+      if (!t || !(t instanceof Element)) return;
+      const btn = t.closest('.gl-ai-apply');
+      if (!btn) return;
+      e.preventDefault();
+      const findingId = btn.getAttribute('data-finding-id');
+      if (!findingId) return;
+      const prev = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Applying…';
+      try {
+        const resp = await chrome.runtime.sendMessage({ type: 'adopt_change', findingId });
+        if (!resp || !resp.ok) throw new Error((resp && resp.error) || 'Failed');
+        btn.textContent = 'Applied';
+      } catch (err) {
+        btn.textContent = 'Failed';
+        setTimeout(() => { btn.textContent = prev; btn.disabled = false; repositionPanel(); }, 1400);
+      } finally {
+        repositionPanel();
+      }
+    });
+
     btn.addEventListener('click', async () => {
       ensureStyles();
       showPanel();
@@ -407,6 +437,7 @@
               <span class="gl-ai-index">${i + 1}</span>
               <span class="gl-ai-badge ${sev}">${escapeHtml(sev || 'info')}</span>
               <span>${title}</span>
+              ${f.id ? `<button class=\"gl-ai-apply\" data-finding-id=\"${escapeHtml(f.id)}\">Apply</button>` : ''}
             </div>
             ${meta ? `<div class="gl-ai-meta">${escapeHtml(meta)}</div>` : ''}
             ${file ? `<div class="gl-ai-meta">File: <span class="gl-ai-file">${file}${range ? ':' + range : ''}</span></div>` : ''}

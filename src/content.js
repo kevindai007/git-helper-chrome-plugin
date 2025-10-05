@@ -466,8 +466,6 @@
         `);
       }
       parts.push('</ul>');
-    } else {
-      parts.push('<div>No findings.</div>');
     }
     return parts.join('');
   }

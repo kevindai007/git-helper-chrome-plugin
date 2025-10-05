@@ -340,6 +340,11 @@
 
     btn.addEventListener('click', async () => {
       ensureStyles();
+      // Toggle: if visible, hide and stop
+      if (panel.classList.contains('visible')) {
+        hidePanel();
+        return;
+      }
       showPanel();
       // Reset states
       loadingEl.style.display = 'flex';

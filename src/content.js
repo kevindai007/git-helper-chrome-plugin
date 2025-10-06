@@ -71,6 +71,7 @@
       .gl-ai-findings { margin: 6px 0; padding: 0; }
       .gl-ai-finding { list-style: none; margin: 10px 0; padding: 10px; border: 1px solid #eaeef2; border-radius: 6px; }
       .gl-ai-finding-header { display:flex; align-items:center; gap:8px; font-weight:600; }
+      .gl-ai-index { display:inline-block; min-width: 20px; text-align:center; padding: 0 6px; border-radius: 999px; font-size: 12px; line-height: 18px; color:#111; background:#e2e8f0; }
       .gl-ai-badge { display:inline-block; padding: 0 6px; border-radius: 999px; font-size: 12px; line-height: 18px; color:#222; background:#eaeef2; text-transform: capitalize; }
       .gl-ai-badge.low { background:#d7f0e5; color:#03543f; }
       .gl-ai-badge.medium { background:#fff4cf; color:#92400e; }
@@ -96,7 +97,21 @@
           border-color:#30363d;
         }
       }
+
+      /* (Removed special remediation block; reuse .gl-ai-code for visibility) */
       .gl-ai-subtitle { font-weight:600; margin: 8px 0 4px; }
+      .gl-ai-apply { margin-left:auto; height: 24px; padding: 0 8px; border-radius: 6px; border: 1px solid #d0d7de; background:#f6f8fa; color:#24292f; font-size:12px; cursor:pointer; }
+      .gl-ai-apply:hover { filter: brightness(0.97); }
+      .gl-ai-apply[disabled] { opacity: 0.6; cursor: default; }
+      .gl-ai-apply[data-status="0"] { background: #000; color: #fff; border-color: #000; }
+      .gl-ai-apply[data-status="0"]:hover { background: #333; }
+      .gl-ai-apply[data-status="1"] { background: #ccc; color: #000; border-color: #ccc; cursor: default; }
+      @media (prefers-color-scheme: dark) {
+        .gl-ai-apply { background:#161b22; color:#c9d1d9; border-color:#30363d; }
+        .gl-ai-apply[data-status="0"] { background: #000; color: #fff; border-color: #000; }
+        .gl-ai-apply[data-status="0"]:hover { background: #333; }
+        .gl-ai-apply[data-status="1"] { background: #ccc; color: #000; border-color: #ccc; }
+      }
     `;
     document.documentElement.appendChild(style);
   }
@@ -300,8 +315,40 @@
 
     closeBtn.addEventListener('click', hidePanel);
 
+    // Delegate clicks for Apply buttons inside the panel content
+    contentEl.addEventListener('click', async (e) => {
+      const t = e.target;
+      if (!t || !(t instanceof Element)) return;
+      const btn = t.closest('.gl-ai-apply');
+      if (!btn) return;
+      if (btn.getAttribute('data-status') === '1' || btn.getAttribute('data-loading') === '1') return;
+      e.preventDefault();
+      const findingId = btn.getAttribute('data-finding-id');
+      if (!findingId) return;
+      const prev = btn.textContent;
+      btn.setAttribute('data-loading', '1');
+      btn.textContent = 'Applying…';
+      try {
+        const resp = await chrome.runtime.sendMessage({ type: 'adopt_change', findingId });
+        if (!resp || !resp.ok) throw new Error((resp && resp.error) || 'Failed');
+        btn.textContent = 'Applied';
+        btn.setAttribute('data-status', '1');
+      } catch (err) {
+        btn.textContent = 'Failed';
+        setTimeout(() => { btn.textContent = prev; btn.removeAttribute('data-loading'); repositionPanel(); }, 1400);
+      } finally {
+        btn.removeAttribute('data-loading');
+        repositionPanel();
+      }
+    });
+
     btn.addEventListener('click', async () => {
       ensureStyles();
+      // Toggle: if visible, hide and stop
+      if (panel.classList.contains('visible')) {
+        hidePanel();
+        return;
+      }
       showPanel();
       // Reset states
       loadingEl.style.display = 'flex';
@@ -370,43 +417,64 @@
     if (findings.length > 0) {
       parts.push(`<div class="gl-ai-section-title">Findings (${findings.length})</div>`);
       parts.push('<ul class="gl-ai-findings">');
-      for (const f of findings) {
+      for (let i = 0; i < findings.length; i++) {
+        const f = findings[i];
         const sev = (f.severity || '').toLowerCase();
         const title = escapeHtml(f.title || '');
-        const ruleId = escapeHtml(f.ruleId || '');
+        const ruleId = f.ruleId ? escapeHtml(f.ruleId) : '';
         const category = escapeHtml(f.category || '');
-        const file = escapeHtml(f.location && f.location.file ? f.location.file : '');
-        const startLine = f.location && f.location.startLine != null ? f.location.startLine : '';
-        const endLine = f.location && f.location.endLine != null ? f.location.endLine : '';
-        const range = startLine !== '' ? `${startLine}${endLine && endLine !== startLine ? '-' + endLine : ''}` : '';
+        const loc = f.location || {};
+        const file = escapeHtml(loc.file || '');
+        const lineType = loc.lineType ? String(loc.lineType) : '';
+        const startLine = loc.startLine != null ? String(loc.startLine) : '';
+        const anchorId = loc.anchorId ? String(loc.anchorId) : '';
+        const anchorSide = loc.anchorSide ? String(loc.anchorSide) : '';
+        const range = startLine ? `${startLine}` : '';
         const description = escapeHtml(f.description || '');
         const evidence = f.evidence ? `<div class="gl-ai-subtitle">Evidence</div><pre class="gl-ai-code">${escapeHtml(f.evidence)}</pre>` : '';
-        const remediationSteps = f.remediation && f.remediation.steps ? `<div class="gl-ai-subtitle">Remediation</div><div class="gl-ai-summary">${escapeHtml(f.remediation.steps)}</div>` : '';
-        const remediationDiff = f.remediation && f.remediation.diff ? `<div class="gl-ai-subtitle">Suggested Diff</div><pre class="gl-ai-code">${escapeHtml(f.remediation.diff)}</pre>` : '';
+        const remParts = [];
+        if (f.remediation && f.remediation.steps) {
+          remParts.push(`<div class=\"gl-ai-subtitle\">Remediation</div><pre class=\"gl-ai-code\">${escapeHtml(f.remediation.steps)}</pre>`);
+        }
+        if (f.remediation && f.remediation.diff) {
+          remParts.push(`<div class=\"gl-ai-subtitle\">Suggested Diff</div><pre class=\"gl-ai-code\">${escapeHtml(f.remediation.diff)}</pre>`);
+        }
+        const remediation = remParts.join('');
         const tags = Array.isArray(f.tags) && f.tags.length ? `<div class="gl-ai-meta">Tags: ${f.tags.map(escapeHtml).join(', ')}</div>` : '';
         const confidence = f.confidence != null ? `<div class="gl-ai-meta">Confidence: ${escapeHtml(f.confidence)}</div>` : '';
         const meta = [ruleId && `Rule: ${ruleId}`, category && `Category: ${category}`].filter(Boolean).join(' • ');
+        const lineMetaParts = [];
+        if (range) lineMetaParts.push(`Line: ${escapeHtml(range)}`);
+        if (lineType) lineMetaParts.push(`Type: ${escapeHtml(lineType)}`);
+        if (anchorSide) lineMetaParts.push(`Side: ${escapeHtml(anchorSide)}`);
+        const lineMeta = lineMetaParts.length ? `<div class="gl-ai-meta">${lineMetaParts.join(' • ')}</div>` : '';
 
         parts.push(`
-          <li class="gl-ai-finding">
+          <li class="gl-ai-finding" data-finding-id="${escapeHtml(f.id || '')}" data-anchor-id="${escapeHtml(anchorId)}" data-anchor-side="${escapeHtml(anchorSide)}" data-line-type="${escapeHtml(lineType)}" data-start-line="${escapeHtml(startLine)}">
             <div class="gl-ai-finding-header">
+              <span class="gl-ai-index">${i + 1}</span>
               <span class="gl-ai-badge ${sev}">${escapeHtml(sev || 'info')}</span>
               <span>${title}</span>
+              ${(() => {
+                if (!f.id) return '';
+                const st = Number(f.status);
+                const applied = st === 1;
+                const label = applied ? 'Applied' : 'Apply';
+                return `<button class="gl-ai-apply" data-finding-id="${escapeHtml(f.id)}" data-status="${applied ? '1' : '0'}">${label}</button>`;
+              })()}
             </div>
             ${meta ? `<div class="gl-ai-meta">${escapeHtml(meta)}</div>` : ''}
             ${file ? `<div class="gl-ai-meta">File: <span class="gl-ai-file">${file}${range ? ':' + range : ''}</span></div>` : ''}
+            ${lineMeta}
             ${description ? `<div class="gl-ai-summary">${description}</div>` : ''}
             ${evidence}
-            ${remediationSteps}
-            ${remediationDiff}
+            ${remediation}
             ${tags}
             ${confidence}
           </li>
         `);
       }
       parts.push('</ul>');
-    } else {
-      parts.push('<div>No findings.</div>');
     }
     return parts.join('');
   }

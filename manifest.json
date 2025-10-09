@@ -21,7 +21,8 @@
     "activeTab"
   ],
   "host_permissions": [
-    "https://anythingllm.nationalcloud.ae/*"
+    "http://kubernetes.docker.internal:8080/*",
+    "http://localhost:8080/*"
   ],
   "background": {
     "service_worker": "src/background.js",
@@ -31,9 +32,22 @@
     {
       "matches": [
         "*://gitlab-ultimate.nationalcloud.ae/*/-/merge_requests/*",
-        "*://gitlab-ultimate.nationalcloud.ae/*/merge_requests/*"
+        "*://gitlab-ultimate.nationalcloud.ae/*/merge_requests/*",
+        "https://gitlab.com/*/-/merge_requests/*",
+        "https://gitlab.com/*/merge_requests/*"
       ],
       "js": ["src/content.js"],
+      "run_at": "document_idle"
+    }
+    ,
+    {
+      "matches": [
+        "*://gitlab-ultimate.nationalcloud.ae/*/-/merge_requests/new*",
+        "*://gitlab-ultimate.nationalcloud.ae/*/merge_requests/new*",
+        "https://gitlab.com/*/-/merge_requests/new*",
+        "https://gitlab.com/*/merge_requests/new*"
+      ],
+      "js": ["src/content_new_mr.js"],
       "run_at": "document_idle"
     }
   ]

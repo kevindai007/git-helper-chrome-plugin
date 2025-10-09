@@ -3,6 +3,7 @@ GitLab AI Review Helper (Chrome Extension)
 Overview
 - Injects an "AI Review" button on GitLab Merge Request pages.
 - On click, shows a small panel, calls a local backend at `http://localhost:8080/api/v1/mr/analyze` with `{ mr_url: <current page URL> }`, and displays the analysis result.
+ - Adds an "AI Generate" button next to the Description field on the New Merge Request page to auto-generate and fill a description via `POST http://localhost:8080/api/v1/mr/describe` with `{ mr_new_url: <current page URL> }`.
 
 Icons
 - Source icons are under `assets/` (kept for design source control).
@@ -24,6 +25,19 @@ Backend API
     "status": "success",
     "mrUrl": "...",
     "analysisResult": "...markdown/text...",
+    "errorMessage": null
+  }
+
+- Description generator endpoint: `POST http://localhost:8080/api/v1/mr/describe`
+- Request body: `{ "mr_new_url": "https://gitlab.com/.../-/merge_requests/new?..." }`
+- Response JSON example:
+  {
+    "status": "success",
+    "mrNewUrl": "...",
+    "projectId": 123,
+    "sourceBranch": "feature",
+    "targetBranch": "main",
+    "description": "...markdown...",
     "errorMessage": null
   }
 

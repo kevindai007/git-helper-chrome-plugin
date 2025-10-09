@@ -37,7 +37,7 @@
         "https://gitlab.com/*/-/merge_requests/*",
         "https://gitlab.com/*/merge_requests/*"
       ],
-      "js": ["src/content/ai_review.js"],
+      "js": ["src/content/shared/style.js", "src/content/ai_review.js"],
       "run_at": "document_idle"
     }
     ,
@@ -48,7 +48,7 @@
         "https://gitlab.com/*/-/merge_requests/new*",
         "https://gitlab.com/*/merge_requests/new*"
       ],
-      "js": ["src/content/mr_describe.js"],
+      "js": ["src/content/shared/style.js", "src/content/mr_describe.js"],
       "run_at": "document_idle"
     }
   ]

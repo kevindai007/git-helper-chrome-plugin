@@ -13,8 +13,6 @@
     const style = document.createElement('style');
     style.id = STYLE_ID;
     style.textContent = `
-      #${BTN_ID} { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.1); background: #1f883d; color: #fff; font-size: 13px; cursor: pointer; }
-      #${BTN_ID}:hover { filter: brightness(0.95); }
       #${PANEL_ID} { position: fixed; z-index: 9999; min-width: 380px; max-width: 640px; max-height: 60vh; overflow: auto; padding: 12px 14px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.12); box-shadow: 0 6px 24px rgba(0,0,0,0.18); background: #fff; color: #1f2328; font-size: 13px; line-height: 1.45; display: none; }
       #${PANEL_ID}.visible { display: block; }
       .gl-ai-review-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
@@ -186,7 +184,8 @@
     const btn = document.createElement('button');
     btn.id = BTN_ID; btn.type = 'button'; btn.textContent = 'AI Review';
     btn.title = 'Analyze this Merge Request with AI';
-    btn.className = 'gl-button btn btn-md btn-confirm';
+    // Use GitLab classes for native look, plus our shared style class as fallback
+    btn.className = 'gl-ai-btn gl-ai-btn--confirm gl-button btn btn-md';
 
     const wrapper = document.createElement('span');
     wrapper.style.position = 'relative';
@@ -287,4 +286,3 @@
   history.replaceState = function () { origReplaceState.apply(this, arguments); onUrlChange(); };
   window.addEventListener('popstate', onUrlChange);
 })();
-

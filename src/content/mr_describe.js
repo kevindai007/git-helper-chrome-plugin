@@ -53,7 +53,11 @@
     ensureStyles();
     const label = findDescriptionLabel(); if (!label) return;
     const container = document.createElement('span'); container.className = 'gl-ai-gen-inline';
-    const btn = document.createElement('button'); btn.id = BTN_ID; btn.type = 'button'; btn.textContent = 'AI Generate'; btn.className = 'gl-button btn btn-md'; btn.title = 'Generate description with AI';
+    const btn = document.createElement('button');
+    btn.id = BTN_ID; btn.type = 'button'; btn.textContent = 'AI Generate';
+    // Match AI Review style: confirm-like button and shared styles
+    btn.className = 'gl-ai-btn gl-ai-btn--confirm gl-button btn btn-md';
+    btn.title = 'Generate description with AI';
     const msg = document.createElement('span'); msg.className = 'gl-ai-gen-msg'; msg.style.display = 'none';
     container.appendChild(btn); container.appendChild(msg);
     try { label.insertAdjacentElement('beforeend', container); } catch { label.parentElement && label.parentElement.appendChild(container); }

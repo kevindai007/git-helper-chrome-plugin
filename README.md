@@ -57,6 +57,21 @@ Permissions
   - `http://kubernetes.docker.internal:8080/*`
   If you add other backends, add them here or use optional host permissions.
 
+Architecture
+- Background (MV3 service worker)
+  - `src/background.js` — entry that routes messages
+  - `src/background/handlers.js` — message handlers per feature (`analyze_mr`, `adopt_change`, `describe_mr`)
+  - `src/background/http.js` — small HTTP helpers (POST JSON)
+- Config
+  - `src/config.js` — backend base mapping per GitLab host, URL builders
+- Content scripts
+  - `src/content/ai_review.js` — AI Review feature for MR pages
+  - `src/content/mr_describe.js` — AI Generate Description for New MR page
+
+Notes
+- Each feature is isolated so you can extend/upgrade independently.
+- Add new background handlers and new content scripts without touching existing features.
+
 Notes
 - The extension runs as a Manifest V3 extension.
 - Cross-origin request to `localhost:8080` is performed by the background service worker (to avoid CORS limitations in content scripts). Ensure your backend is running and accessible.

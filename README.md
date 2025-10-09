@@ -3,7 +3,8 @@ GitLab AI Review Helper (Chrome Extension)
 Overview
 - Injects an "AI Review" button on GitLab Merge Request pages.
 - On click, shows a small panel, calls the backend `POST /api/v1/mr/analyze` with `{ mr_url: <current page URL> }`, and displays the analysis result.
-- Adds an "AI Generate" button next to the Description field on the New Merge Request page to auto-generate and fill a description via `POST /api/v1/mr/describe` with `{ mr_new_url: <current page URL> }`.
+- Adds an "AI Generate" button next to the Description field on the New Merge Request page.
+  - Streams description via SSE (Server-Sent Events) from `POST /api/v1/mr/describe` with `{ mr_new_url: <current page URL> }` and progressively fills the editor.
 
 Icons
 - Source icons are under `assets/` (kept for design source control).
@@ -20,7 +21,7 @@ Install (Developer Mode)
 Backend API
 - Endpoints (base is selected dynamically by GitLab host):
   - `POST {BASE}/api/v1/mr/analyze`
-  - `POST {BASE}/api/v1/mr/describe`
+  - `POST {BASE}/api/v1/mr/describe` (SSE stream: `Accept: text/event-stream`)
 - Request body: `{ "mr_url": "https://gitlab.com/.../-/merge_requests/..." }`
 - Response JSON example:
   {
@@ -33,15 +34,11 @@ Backend API
 - Description generator
 - Request body: `{ "mr_new_url": "https://gitlab.com/.../-/merge_requests/new?..." }`
 - Response JSON example:
-  {
-    "status": "success",
-    "mrNewUrl": "...",
-    "projectId": 123,
-    "sourceBranch": "feature",
-    "targetBranch": "main",
-    "description": "...markdown...",
-    "errorMessage": null
-  }
+  SSE events:
+  - `event: start` data(JSON): `{ status: "IN_PROGRESS", mrNewUrl, correlationId, ts }`
+  - `event: delta` data(string): incremental chunk text to append
+  - `event: error` data(JSON): `{ message, correlationId, ts }` — stop on error
+  - `event: done`  data(JSON): `{ status: "SUCCESS", mrNewUrl, description }`
 
 Backend base selection
 - See `src/config.js`:
@@ -66,7 +63,7 @@ Architecture
   - `src/config.js` — backend base mapping per GitLab host, URL builders
 - Content scripts
   - `src/content/ai_review.js` — AI Review feature for MR pages
-  - `src/content/mr_describe.js` — AI Generate Description for New MR page
+  - `src/content/mr_describe.js` — AI Generate Description for New MR page (SSE streaming UI)
 
 Notes
 - Each feature is isolated so you can extend/upgrade independently.

@@ -18,7 +18,8 @@
     }
   },
   "permissions": [
-    "activeTab"
+    "activeTab",
+    "tabs"
   ],
   "host_permissions": [
     "http://kubernetes.docker.internal:8080/*",

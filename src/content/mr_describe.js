@@ -59,19 +59,142 @@
     try { label.insertAdjacentElement('beforeend', container); } catch { label.parentElement && label.parentElement.appendChild(container); }
 
     let doing = false;
+    let correlationId = null;
+    let agg = '';
+
+    function getEditorElements() {
+      const pm = document.querySelector('[data-testid="content_editor_editablebox"] .ProseMirror, .tiptap.ProseMirror.rte-text-box[contenteditable="true"]');
+      const ta = document.querySelector('textarea#merge_request_description, textarea[name="merge_request[description]"]');
+      return { pm, ta };
+    }
+
+    const writer = {
+      cleared: false,
+      pm: null,
+      ta: null,
+      ensure() { const { pm, ta } = getEditorElements(); this.pm = pm; this.ta = ta; return !!(pm || ta); },
+      clear() {
+        this.ensure();
+        if (this.ta) { this.ta.value = ''; try { this.ta.dispatchEvent(new Event('input', { bubbles: true })); } catch {} }
+        if (this.pm) {
+          try {
+            this.pm.focus();
+            const sel = window.getSelection(); const range = document.createRange(); range.selectNodeContents(this.pm); sel.removeAllRanges(); sel.addRange(range);
+            document.execCommand('delete', false);
+            this.pm.dispatchEvent(new Event('input', { bubbles: true }));
+          } catch {}
+        }
+        this.cleared = true;
+      },
+      appendChunk(chunk) {
+        this.ensure();
+        if (this.ta) {
+          this.ta.value += chunk;
+          try { this.ta.dispatchEvent(new Event('input', { bubbles: true })); } catch {}
+        }
+        if (this.pm) {
+          try {
+            this.pm.focus();
+            const sel = window.getSelection(); const range = document.createRange(); range.selectNodeContents(this.pm); range.collapse(false); sel.removeAllRanges(); sel.addRange(range);
+            let handled = false;
+            try {
+              const ev = new InputEvent('beforeinput', { data: chunk, inputType: 'insertText', bubbles: true, cancelable: true });
+              handled = this.pm.dispatchEvent(ev) === false || ev.defaultPrevented;
+            } catch {}
+            if (!handled) {
+              const ok = document.execCommand('insertText', false, chunk);
+              if (!ok) {
+                this.pm.appendChild(document.createTextNode(chunk));
+              }
+            }
+            try { this.pm.dispatchEvent(new Event('input', { bubbles: true })); } catch {}
+          } catch {}
+        }
+      },
+      setText(text) {
+        this.ensure();
+        if (this.ta) {
+          this.ta.value = text;
+          try { this.ta.dispatchEvent(new Event('input', { bubbles: true })); } catch {}
+        }
+        if (this.pm) {
+          try {
+            this.pm.focus();
+            const sel = window.getSelection(); const range = document.createRange(); range.selectNodeContents(this.pm); sel.removeAllRanges(); sel.addRange(range);
+            let handled = false;
+            try {
+              const ev = new InputEvent('beforeinput', { data: text, inputType: 'insertReplacementText', bubbles: true, cancelable: true });
+              handled = this.pm.dispatchEvent(ev) === false || ev.defaultPrevented;
+            } catch {}
+            if (!handled) {
+              const okDel = document.execCommand('delete', false);
+              const okIns = document.execCommand('insertText', false, text);
+              if (!okDel || !okIns) { this.pm.textContent = text; }
+            }
+            try { this.pm.dispatchEvent(new Event('input', { bubbles: true })); } catch {}
+          } catch { try { this.pm.textContent = text; } catch {} }
+        }
+      }
+    };
+    const onEvent = (evt) => {
+      if (!evt || evt.type !== 'describe_mr_event') return;
+      // If we haven't received correlationId yet, adopt the first incoming one.
+      if (!correlationId) {
+        correlationId = evt.correlationId || null;
+      }
+      if (!correlationId || evt.correlationId !== correlationId) return;
+      const { eventType, data } = evt;
+      if (eventType === 'start') {
+        msg.textContent = 'Generating…';
+        if (!writer.cleared) writer.clear();
+      } else if (eventType === 'delta') {
+        const chunk = String(data || '');
+        agg += chunk;
+        msg.textContent = 'Generating…';
+        msg.style.display = 'inline';
+        if (!writer.cleared) writer.clear();
+        writer.appendChunk(chunk);
+      } else if (eventType === 'error') {
+        msg.textContent = `Failed: ${data && data.message ? data.message : 'Unknown error'}`;
+        msg.classList.add('err');
+        cleanup(true);
+      } else if (eventType === 'done') {
+        const finalText = (data && data.description) ? data.description : agg;
+        agg = finalText;
+        writer.setText(finalText);
+        msg.textContent = 'Description inserted';
+        cleanup(false);
+      }
+    };
+    const onMessage = (evt) => onEvent(evt);
+
+    function cleanup(error) {
+      if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+      try { chrome.runtime.sendMessage({ type: 'describe_mr_abort', correlationId }); } catch {}
+      correlationId = null;
+      btn.disabled = false;
+      doing = false;
+      setTimeout(() => { msg.style.display = 'none'; if (!error) msg.classList.remove('err'); }, 2000);
+      chrome.runtime.onMessage.removeListener(onMessage);
+      window.removeEventListener('beforeunload', onUnload);
+    }
+    function onUnload() { if (correlationId) { try { chrome.runtime.sendMessage({ type: 'describe_mr_abort', correlationId }); } catch {} } }
+
     btn.addEventListener('click', async () => {
       if (doing) return; doing = true; btn.disabled = true; const prev = btn.textContent; btn.textContent = 'Generating…'; msg.style.display = 'inline'; msg.classList.remove('err'); msg.textContent = '';
+      agg = '';
       try {
-        const mrNewUrl = location.href; const resp = await chrome.runtime.sendMessage({ type: 'describe_mr', mrNewUrl });
-        if (!resp || !resp.ok) throw new Error((resp && resp.error) || 'Unknown error');
-        const data = resp.data || {}; const description = data.description || '';
-        if (!description) throw new Error('No description returned');
-        const ok = fillDescription(description);
-        msg.textContent = ok ? 'Description inserted' : 'Target editor not found'; if (!ok) msg.classList.add('err');
+        const mrNewUrl = location.href;
+        chrome.runtime.onMessage.addListener(onMessage);
+        window.addEventListener('beforeunload', onUnload);
+        const resp = await chrome.runtime.sendMessage({ type: 'describe_mr_start', mrNewUrl });
+        if (!resp || !resp.ok) throw new Error((resp && resp.error) || 'Failed to start stream');
+        correlationId = resp.correlationId;
       } catch (e) {
         msg.textContent = `Failed: ${e && e.message ? e.message : e}`; msg.classList.add('err');
+        btn.disabled = false; doing = false; chrome.runtime.onMessage.removeListener(onMessage); window.removeEventListener('beforeunload', onUnload);
       } finally {
-        btn.textContent = prev; btn.disabled = false; doing = false; setTimeout(() => { msg.style.display = 'none'; msg.textContent = ''; msg.classList.remove('err'); }, 3000);
+        btn.textContent = 'AI Generate';
       }
     });
   }
@@ -86,4 +209,3 @@
   history.replaceState = function () { origReplaceState.apply(this, arguments); onUrlChange(); };
   window.addEventListener('popstate', onUrlChange);
 })();
-

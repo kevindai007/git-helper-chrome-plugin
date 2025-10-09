@@ -21,8 +21,7 @@
     "activeTab"
   ],
   "host_permissions": [
-    "http://kubernetes.docker.internal:8080/*",
-    "http://localhost:8080/*"
+    "http://kubernetes.docker.internal:8080/*"
   ],
   "background": {
     "service_worker": "src/background.js",

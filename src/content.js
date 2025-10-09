@@ -329,7 +329,7 @@
       btn.setAttribute('data-loading', '1');
       btn.textContent = 'Applying…';
       try {
-        const resp = await chrome.runtime.sendMessage({ type: 'adopt_change', findingId });
+        const resp = await chrome.runtime.sendMessage({ type: 'adopt_change', findingId, pageUrl: location.href });
         if (!resp || !resp.ok) throw new Error((resp && resp.error) || 'Failed');
         btn.textContent = 'Applied';
         btn.setAttribute('data-status', '1');

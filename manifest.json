@@ -21,7 +21,8 @@
     "activeTab"
   ],
   "host_permissions": [
-    "http://kubernetes.docker.internal:8080/*"
+    "http://kubernetes.docker.internal:8080/*",
+    "https://anythingllm.nationalcloud.ae/*"
   ],
   "background": {
     "service_worker": "src/background.js",

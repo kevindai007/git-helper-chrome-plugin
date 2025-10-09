@@ -2,8 +2,8 @@ GitLab AI Review Helper (Chrome Extension)
 
 Overview
 - Injects an "AI Review" button on GitLab Merge Request pages.
-- On click, shows a small panel, calls a local backend at `http://localhost:8080/api/v1/mr/analyze` with `{ mr_url: <current page URL> }`, and displays the analysis result.
- - Adds an "AI Generate" button next to the Description field on the New Merge Request page to auto-generate and fill a description via `POST http://localhost:8080/api/v1/mr/describe` with `{ mr_new_url: <current page URL> }`.
+- On click, shows a small panel, calls the backend `POST /api/v1/mr/analyze` with `{ mr_url: <current page URL> }`, and displays the analysis result.
+- Adds an "AI Generate" button next to the Description field on the New Merge Request page to auto-generate and fill a description via `POST /api/v1/mr/describe` with `{ mr_new_url: <current page URL> }`.
 
 Icons
 - Source icons are under `assets/` (kept for design source control).
@@ -18,7 +18,9 @@ Install (Developer Mode)
 - Click "Load unpacked" and select this folder.
 
 Backend API
-- Expected endpoint: `POST http://localhost:8080/api/v1/mr/analyze`
+- Endpoints (base is selected dynamically by GitLab host):
+  - `POST {BASE}/api/v1/mr/analyze`
+  - `POST {BASE}/api/v1/mr/describe`
 - Request body: `{ "mr_url": "https://gitlab.com/.../-/merge_requests/..." }`
 - Response JSON example:
   {
@@ -28,7 +30,7 @@ Backend API
     "errorMessage": null
   }
 
-- Description generator endpoint: `POST http://localhost:8080/api/v1/mr/describe`
+- Description generator
 - Request body: `{ "mr_new_url": "https://gitlab.com/.../-/merge_requests/new?..." }`
 - Response JSON example:
   {
@@ -40,6 +42,20 @@ Backend API
     "description": "...markdown...",
     "errorMessage": null
   }
+
+Backend base selection
+- See `src/config.js`:
+  - `BACKEND_MAP`: maps GitLab host → backend base, e.g.
+    - `gitlab.com` → `http://localhost:8080`
+    - `gitlab-ultimate.nationalcloud.ae` → `http://kubernetes.docker.internal:8080`
+  - `BACKEND_BASE`: fallback base if no map entry matches.
+- The background worker builds URLs per request using the page URL host, so you don't need to edit code when switching between GitLab environments — just adjust `BACKEND_MAP` once.
+
+Permissions
+- `manifest.json` must include host permissions for any backend bases you will call. Currently included:
+  - `http://localhost:8080/*`
+  - `http://kubernetes.docker.internal:8080/*`
+  If you add other backends, add them here or use optional host permissions.
 
 Notes
 - The extension runs as a Manifest V3 extension.

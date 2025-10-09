@@ -1,6 +1,6 @@
 // background.js (MV3 service worker, ES module)
 // Handles cross-origin fetch to localhost backend to avoid CORS issues from content scripts.
-import { ANALYZE_URL, ADOPT_URL, DESCRIBE_URL } from './config.js';
+import { ANALYZE_URL_FOR, ADOPT_URL_FOR, DESCRIBE_URL_FOR } from './config.js';
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || (message.type !== 'analyze_mr' && message.type !== 'adopt_change' && message.type !== 'describe_mr')) return; // not for us
@@ -13,7 +13,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.type === 'analyze_mr') {
         const { mrUrl } = message;
         if (!mrUrl) throw new Error('Missing mrUrl');
-        const r = await fetch(ANALYZE_URL, {
+        const r = await fetch(ANALYZE_URL_FOR(mrUrl), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ mr_url: mrUrl }),
@@ -28,9 +28,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const data = await r.json();
         sendResponse({ ok: true, data });
       } else if (message.type === 'adopt_change') {
-        const { findingId } = message;
+        const { findingId, pageUrl } = message;
         if (!findingId) throw new Error('Missing findingId');
-        const r = await fetch(ADOPT_URL(findingId), {
+        const r = await fetch(ADOPT_URL_FOR(findingId, pageUrl || ''), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal: controller.signal,
@@ -48,7 +48,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       } else if (message.type === 'describe_mr') {
         const { mrNewUrl } = message;
         if (!mrNewUrl) throw new Error('Missing mrNewUrl');
-        const r = await fetch(DESCRIBE_URL, {
+        const r = await fetch(DESCRIBE_URL_FOR(mrNewUrl), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ mr_new_url: mrNewUrl }),
